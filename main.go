@@ -1,17 +1,15 @@
 package main
 
-import "github.cm/gin-gonic/gin"
+import (
+	"net/http"
 
-func start(c *gin.Context) {
-	c.JSON(200, gin.H{
-		"start": "heap",
-	})
-}
+	"github.com/labstack/echo"
+)
 
 func main() {
-	router := gin.Default()
-
-	r.GET("/start", start)
-
-	router.Run()
+	e := echo.New()
+	e.GET("/start", func(c echo.Context) error {
+		return c.String(http.StatusOK, "staring...")
+	})
+	e.Logger.Fatal(e.Start(":1323"))
 }
