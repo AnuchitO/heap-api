@@ -1,42 +1,76 @@
 package main
 
 import (
-	"io"
+	"context"
+	"fmt"
+	"log"
 	"net/http"
-	"os"
+	"strings"
 
+	vision "cloud.google.com/go/vision/apiv1"
 	"github.com/labstack/echo"
 )
 
 func uploadImage(c echo.Context) error {
-	caty := c.FormValue("category")
 	image, err := c.FormFile("image")
 	if err != nil {
 		return err
 	}
 
 	// Source
-	src, err := image.Open()
+	file, err := image.Open()
 	if err != nil {
 		return err
 	}
-	defer src.Close()
+	defer file.Close()
 
-	// Destination
-	dst, err := os.Create(image.Filename)
+	ctx := context.Background()
+
+	// Creates a client.
+	client, err := vision.NewImageAnnotatorClient(ctx)
 	if err != nil {
-		return err
+		log.Fatalf("Failed to create client: %v", err)
 	}
-	defer dst.Close()
-
-	// Copy
-	if _, err = io.Copy(dst, src); err != nil {
-		return err
+	img, err := vision.NewImageFromReader(file)
+	if err != nil {
+		log.Fatalf("Failed to create image: %v", err)
 	}
 
-	return c.JSON(http.StatusOK, map[string]string{
-		"category": caty,
-	})
+	annotation, err := client.DetectDocumentText(ctx, img, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if annotation == nil {
+		fmt.Println("No text found.")
+	} else {
+		fmt.Println("Document Text:")
+		fmt.Printf("%q\n", annotation.Text)
+
+		fmt.Println("Pages:")
+		for _, page := range annotation.Pages {
+			fmt.Printf("\tConfidence: %f, Width: %d, Height: %d\n", page.Confidence, page.Width, page.Height)
+			fmt.Println("\tBlocks:")
+			for _, block := range page.Blocks {
+				fmt.Printf("\t\tConfidence: %f, Block type: %v\n", block.Confidence, block.BlockType)
+				fmt.Println("\t\tParagraphs:")
+				for _, paragraph := range block.Paragraphs {
+					fmt.Printf("\t\t\tConfidence: %f", paragraph.Confidence)
+					fmt.Println("\t\t\tWords:")
+					for _, word := range paragraph.Words {
+						symbols := make([]string, len(word.Symbols))
+						for i, s := range word.Symbols {
+							symbols[i] = s.Text
+						}
+						wordText := strings.Join(symbols, "")
+						fmt.Printf("\t\t\t\tConfidence: %f, Symbols: %s\n", word.Confidence, wordText)
+					}
+				}
+			}
+		}
+	}
+
+	return c.JSON(http.StatusOK, annotation)
 }
 
 func main() {
