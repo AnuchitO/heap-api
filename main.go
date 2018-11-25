@@ -75,11 +75,13 @@ func uploadImage(c echo.Context) error {
 
 func main() {
 	e := echo.New()
-	e.GET("/start", func(c echo.Context) error {
+
+	api := e.Group("/api")
+	api.GET("/start", func(c echo.Context) error {
 		return c.String(http.StatusOK, "staring...")
 	})
 
-	e.POST("/upload", uploadImage)
+	api.POST("/upload", uploadImage)
 
 	e.Logger.Fatal(e.Start(":1323"))
 }
